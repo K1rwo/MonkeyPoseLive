@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "base_python": "",
+  "output_directory": "%LOCALAPPDATA%/MonkeyPoseLive/sessions",
+  "detector": {
+    "checkpoint": "",
+    "device": "cpu"
+  },
+  "models": {
+    "mmpose": {
+      "python": "",
+      "config": "",
+      "checkpoint": "",
+      "checkpoint_sha256": "9b34b02a4ef7eddcde7f2b350ceb919e42e570449ede42165599273e7488630b",
+      "detector_supported": true
+    },
+    "macaque3dpose_2d": {
+      "python": "",
+      "config": "",
+      "checkpoint": "",
+      "checkpoint_sha256": "4ccd168b879de432c1cc90e08a62088c28ea5f60fb82347ff5edb8d961a27593",
+      "detector_supported": true
+    },
+    "vitpose_animal": {
+      "python": "",
+      "repo": "",
+      "config": "",
+      "checkpoint": "",
+      "checkpoint_sha256": "75df941cd7ae632a7b0abb136d6c11c9f967643f9ea4a1dd52cf6b642b1eb8f3",
+      "detector_supported": true
+    },
+    "xpose": {
+      "python": "",
+      "repo": "",
+      "config": "",
+      "checkpoint": "",
+      "checkpoint_sha256": "5326ce945d068fec454ad759b35b42c1128934179424bfd1dfd7ab024599e4c0",
+      "clip_checkpoint": "",
+      "clip_checkpoint_sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af",
+      "detector_supported": true
+    },
+    "dlc": {
+      "python": "",
+      "config": "",
+      "pose_config": "",
+      "checkpoint": "",
+      "checkpoint_files_sha256": {},
+      "detector_supported": false
+    }
+  }
+}

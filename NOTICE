@@ -1,0 +1,19 @@
+MonkeyPoseLive
+Copyright (c) 2026 MonkeyPoseLive contributors
+
+The application shell and original adapter code are MIT licensed.
+
+adaptation_helpers.py implements the AP10K checkpoint selection described in
+ViTPose tools/model_split.py at commit
+c050ed29112da7704797cc1a65af0234b525010d.
+Reference: https://github.com/ViTAE-Transformer/ViTPose/blob/c050ed29112da7704797cc1a65af0234b525010d/tools/model_split.py
+ViTPose / OpenMMLab code is licensed under Apache License 2.0.
+Copyright 2018-2020 Open-MMLab. All rights reserved.
+The relevant license text is included in licenses/ViTPose-Apache-2.0.txt.
+Changes here isolate the AP10K expert/head transform and verify selected tensors
+without importing a research workspace. Model code and weights are not bundled.
+
+The desktop distribution additionally includes runtime library license texts
+and an exact package inventory in third-party-licenses and THIRD_PARTY_NOTICES.
+Microsoft WebView2 Runtime is obtained separately from Microsoft.
+Model code, datasets and weights retain their original licenses; see docs/BACKENDS.md.
