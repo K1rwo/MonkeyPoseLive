@@ -111,14 +111,14 @@ class RuntimeConfigurationTests(unittest.TestCase):
         config.save_config({'output_directory': 'active-only-output'})
         alternate = self.write_raw('{}', self.folder / 'alternate/config.json')
         resolved = config.load_config(alternate, resolve_paths=True)
-        self.assertEqual(Path(resolved['output_directory']), config.local_app_directory() / 'sessions')
+        self.assertEqual(Path(resolved['output_directory']).resolve(), (config.local_app_directory() / 'sessions').resolve())
 
     def test_atomic_save_preserves_old_bytes_in_adjacent_backup(self):
         config.save_config({'output_directory': 'first'})
         old_bytes = self.path.read_bytes()
         result = config.save_config({'output_directory': 'second'})
         backup = Path(result['_backup_path'])
-        self.assertEqual(backup.parent, self.path.parent)
+        self.assertEqual(backup.parent.resolve(), self.path.parent.resolve())
         self.assertEqual(backup.read_bytes(), old_bytes)
         self.assertEqual(config.load_config()['output_directory'], 'second')
         self.assertFalse(list(self.path.parent.glob('*.tmp')))
