@@ -1,0 +1,40 @@
+name: Remote web service
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify-and-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Install web host dependencies
+        run: python -m pip install --index-url https://pypi.org/simple -r requirements-web.txt
+      - name: Auth, ownership, transfer and lifecycle tests
+        run: python -m unittest test_remote_server -v
+      - name: Public package boundaries and integrity
+        run: python -m unittest test_web_package -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Remote browser client regressions
+        run: node --test tests/test_remote_frontend.cjs
+      - name: Windows web launcher regressions
+        shell: pwsh
+        run: ./tests/test_web_launchers.ps1
+      - name: Build web deployment package
+        run: python build_web.py --output-dir dist/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonkeyPoseLive-web-host
+          path: |
+            dist/web/*.zip
+            dist/web/*.sha256

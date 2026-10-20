@@ -1,0 +1,3 @@
+# Web host only. ML models use their existing, separately configured interpreters.
+numpy==2.5.4
+opencv-python-headless==4.14.0.94

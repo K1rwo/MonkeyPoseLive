@@ -4,6 +4,14 @@
 
 Local monkey 2D pose and trajectory viewer for USB cameras and video files. The Windows desktop application uses independently configured pose backends; model weights and research media are supplied by the user.
 
+## 远程网页版（0.2）
+
+这台电脑运行模型，其他电脑通过带密码的HTTPS网页上传视频，或发送浏览器摄像头画面。客户端无需安装模型。网页可查看骨架、关节轨迹和进度，并下载JSONL、CSV和叠加视频。上传任务逐帧处理；摄像头一次发送一帧，避免积压，实际速度取决于网络和模型。
+
+使用独立Python环境安装 `requirements-web.txt`，配置好本机模型后，运行 [Start-Web.ps1](Start-Web.ps1)；加 `-QuickTunnel` 创建临时公网HTTPS入口。先用 [Install-WebTunnel.ps1](Install-WebTunnel.ps1) 安装并校验官方隧道工具。停止入口和推理服务使用 [Stop-Web.ps1](Stop-Web.ps1)。完整部署与访问说明见 [WEB_DEPLOYMENT.md](docs/WEB_DEPLOYMENT.md)。
+
+远程服务与桌面API分开：随机密码、会话隔离、同源验证、上传和存储配额；远程客户端不能浏览主机文件、改模型路径或开启主机USB摄像头。视频和结果只保存在主机专用数据目录，不随Git发布。公网隧道中转流量；推理仍在本机。临时网址会随重启变化，适合试用；长期入口需要后续配置。
+
 ## Windows 软件
 
 1. 从 [Releases](https://github.com/K1rwo/MonkeyPoseLive/releases) 下载 Windows x64 便携 ZIP，解压整个目录，双击 `MonkeyPoseLive.exe`。
@@ -42,7 +50,7 @@ flowchart LR
 - 采集与推理分开，仅处理最新帧；慢模型会跳帧。文件按墙钟速度模拟实时输入，逐帧离线评估应使用专门批处理程序。
 - 分数不等于准确率。缺失、低分、框外点及超过1秒的输出间隔会断开显示轨迹，不插值补点或平滑原始坐标。
 - 原始坐标保留在处理画面的像素坐标系，保存时附输入尺寸、原始尺寸比例、模型和配置来源。
-- 默认关闭坐标保存，不录制原始视频。服务仅监听loopback，界面不调用云端模型。
+- 桌面模式默认关闭坐标保存，不录制原始视频。桌面服务仅监听loopback；远程模式通过单独的HTTPS隧道连接，也不调用云端模型。
 - 这是单猴2D工具。遮挡、笼条、暗部和目标切换仍需人工核验；没有个体身份验证、3D重建或情感分类。
 
 初版已进行模型适配器、文件模拟、ROI切换、轨迹断点和进程生命周期检查。USB硬件兼容性和持续性能需要在目标设备上实测；运行检查不等于专家关键点准确率评估。若检测器或旧检查点曾用目标域数据训练，完整流程不能称为严格zero-shot。
