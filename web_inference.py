@@ -59,8 +59,11 @@ def jpeg_dimensions(data):
 class ModelProcess:
     def __init__(self, job):
         from models import MODELS
+        from face_models import FACE_MODELS
         from runtime_config import config_path
-        spec = MODELS[job.config['model']]
+        model_id=job.config['model']
+        spec = MODELS.get(model_id) or FACE_MODELS[model_id]
+        worker_script='face_worker.py' if model_id in FACE_MODELS else 'worker.py'
         self.job = job
         self.messages = queue.Queue(maxsize=8)
         self.log = (job.directory/'worker.stderr.log').open('wb')
@@ -70,8 +73,8 @@ class ModelProcess:
         env.pop('PYTHONHOME', None)
         env.pop('PYTHONPATH', None)
         try:
-            self.proc = subprocess.Popen([str(spec['python']), '-u', str(HERE/'worker.py'),
-                '--model', job.config['model'], '--device', 'cpu' if job.config['model']=='dlc' else 'cuda'],
+            self.proc = subprocess.Popen([str(spec['python']), '-u', str(HERE/worker_script),
+                '--model', model_id, '--device', 'cpu' if model_id=='dlc' else 'cuda'],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log, text=True,
                 encoding='utf-8', errors='replace', bufsize=1, env=env, cwd=str(HERE),
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
@@ -138,6 +141,50 @@ class ModelProcess:
             (self.job.directory/'ipc_frame.jpg').unlink(missing_ok=True)
 
 
+def render_frame_overlay(cv2,image,result,valid):
+    """Draw only this frame's prediction; temporal paths belong in the chart."""
+    points=result.get('points',[])
+    for a,b in result.get('edges',[]):
+        if 0<=a<len(valid) and 0<=b<len(valid) and valid[a] and valid[b]:
+            cv2.line(image,tuple(map(round,points[a][:2])),tuple(map(round,points[b][:2])),(50,220,250),2)
+    for i,p in enumerate(points):
+        if i<len(valid) and valid[i]:
+            cv2.circle(image,(round(p[0]),round(p[1])),2 if len(points)>30 else 3,(70,235,100),-1)
+    face_box=result.get('face_bbox_xyxy')
+    if face_box and len(face_box)==4 and all(math.isfinite(x) for x in face_box):
+        cv2.rectangle(image,tuple(map(round,face_box[:2])),tuple(map(round,face_box[2:])),(70,220,245),1)
+    expression=result.get('expression') or {}
+    if expression.get('available'):
+        label=expression.get('label','')
+        if label in {'neutral','lipsmack','threat','fearful'}:
+            score=expression.get('score')
+            text='Facial display: '+label+(f' ({score:.3f})' if isinstance(score,(int,float)) and math.isfinite(score) else '')
+            cv2.putText(image,text,(12,48),cv2.FONT_HERSHEY_SIMPLEX,.55,(245,235,190),1)
+
+
+CSV_FIELDS=['sequence','timestamp_seconds','joint_index','joint_name','x_pixels','y_pixels',
+            'raw_score','display_valid','status','coordinate_system','task','expression_available',
+            'expression_label','expression_score','class_label','class_score']
+
+
+def prediction_csv_rows(result,valid):
+    """A native point per row, or a class score per row for the facial CNN."""
+    seq=result.get('sequence',result.get('seq'))
+    stamp=result.get('timestamp')
+    status=result.get('status')
+    coordinate=result.get('coordinate_system','resized_frame_pixels')
+    task=result.get('task','body_pose')
+    expression=result.get('expression') or {}
+    if task=='facial_expression':
+        scores=expression.get('probabilities') or [{}]
+        return [[seq,stamp,'','','','','','',status,coordinate,task,expression.get('available',False),
+                 expression.get('label',''),expression.get('score',''),item.get('label',''),item.get('score','')]
+                for item in scores]
+    names=result.get('keypoint_names',[])
+    return [[seq,stamp,i,names[i] if i<len(names) else str(i),*point,valid[i],status,coordinate,task,'','','','','']
+            for i,point in enumerate(result.get('points',[]))]
+
+
 class InferenceEngine:
     def run(self, job):
         import cv2
@@ -181,8 +228,7 @@ class InferenceEngine:
                 prediction_file = (job.directory/'predictions.jsonl').open('x', encoding='utf-8')
                 csv_file = (job.directory/'trajectory.csv').open('x', encoding='utf-8-sig', newline='')
                 csv_writer = csv.writer(csv_file)
-                csv_writer.writerow(['sequence','timestamp_seconds','joint_index','joint_name','x_pixels','y_pixels',
-                                     'raw_score','display_valid','status','coordinate_system'])
+                csv_writer.writerow(CSV_FIELDS)
             job.update(status='running', total_frames=total)
             last_camera = time.monotonic()
             last_timestamp = -1.0
@@ -226,6 +272,7 @@ class InferenceEngine:
                 if not ok:
                     raise RuntimeError('输入图片编码失败')
                 result = worker.predict(encoded.tobytes(), seq, stamp)
+                result.setdefault('task',readiness.get('task','body_pose'))
                 result.update(source_width=w0,source_height=h0,coordinate_width=w,coordinate_height=h,
                               sequence=seq,coordinate_system='resized_frame_pixels',training=False,
                               reference_accuracy_validated=False)
@@ -243,15 +290,7 @@ class InferenceEngine:
                 sample = trails.add(result,w,h,job.config['threshold'])
                 result['display_valid'] = sample['valid']
                 points = result.get('points',[])
-                for j,p in enumerate(points):
-                    for a,b in trails.segments(j):
-                        cv2.line(image,tuple(map(round,a)),tuple(map(round,b)),(255,180,70),1,cv2.LINE_AA)
-                for a,b in result.get('edges',[]):
-                    if a<len(sample['valid']) and b<len(sample['valid']) and sample['valid'][a] and sample['valid'][b]:
-                        cv2.line(image,tuple(map(round,points[a][:2])),tuple(map(round,points[b][:2])),(50,220,250),2)
-                for i,p in enumerate(points):
-                    if sample['valid'][i]:
-                        cv2.circle(image,(round(p[0]),round(p[1])),3,(70,235,100),-1)
+                render_frame_overlay(cv2,image,result,sample['valid'])
                 cv2.putText(image,f'{job.config["model"]} | frame {seq} | {result.get("status")}',
                             (12,24),cv2.FONT_HERSHEY_SIMPLEX,.5,(245,245,245),1)
                 ok, preview = cv2.imencode('.jpg',image,[cv2.IMWRITE_JPEG_QUALITY,85])
@@ -260,10 +299,7 @@ class InferenceEngine:
                 if job.config['record']:
                     prediction_file.write(json.dumps(result,ensure_ascii=False,allow_nan=False)+'\n')
                     prediction_file.flush()
-                    names=result.get('keypoint_names',[])
-                    for i,p in enumerate(points):
-                        csv_writer.writerow([seq,stamp,i,names[i] if i<len(names) else str(i),*p,sample['valid'][i],
-                                             result.get('status'),'resized_frame_pixels'])
+                    csv_writer.writerows(prediction_csv_rows(result,sample['valid']))
                     csv_file.flush()
                     if job.kind=='video':
                         if video_writer is None:
@@ -275,7 +311,8 @@ class InferenceEngine:
                 processed += 1
                 safe_result={k:result.get(k) for k in ('sequence','timestamp','points','display_valid','edges',
                     'keypoint_names','score_semantics','object_score','inference_ms','status','coordinate_system',
-                    'coordinate_width','coordinate_height','source_width','source_height')}
+                    'coordinate_width','coordinate_height','source_width','source_height','task',
+                    'face_bbox_xyxy','expression','detector_score')}
                 safe_result.update(width=w,height=h,joint_names=result.get('keypoint_names',[]),
                                    trajectories=list(trails.samples))
                 with job.lock:

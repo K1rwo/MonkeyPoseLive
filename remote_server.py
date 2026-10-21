@@ -23,7 +23,7 @@ import traceback
 from urllib.parse import urlsplit, parse_qs
 import uuid
 
-VERSION='0.2.0'
+VERSION='0.3.0'
 CHUNK=4*1024*1024
 MAX_UPLOAD=512*1024*1024
 MAX_STORAGE=5*1024**3
@@ -39,8 +39,12 @@ class HTTPError(Exception):
 
 def safe_models():
     from models import MODELS
-    return [{k:v.get(k) for k in ('id','label','ready','detector_supported','score_semantics','caveat')}
-            for v in MODELS.values()]
+    from face_models import FACE_MODELS
+    fields=('id','label','ready','detector_supported','score_semantics','caveat',
+            'label_zh','label_ja','caveat_zh','caveat_ja')
+    summaries=[dict({k:v.get(k) for k in fields},task='body_pose') for v in MODELS.values()]
+    summaries.extend(dict({k:v.get(k) for k in fields},task=v['task']) for v in FACE_MODELS.values())
+    return summaries
 
 
 class Job:

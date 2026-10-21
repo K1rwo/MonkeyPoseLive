@@ -9,6 +9,8 @@
 | `vitpose_animal` | `c050ed29112da7704797cc1a65af0234b525010d` | [ViTPose](https://github.com/ViTAE-Transformer/ViTPose/tree/c050ed29112da7704797cc1a65af0234b525010d)，Apache-2.0 |
 | `xpose` | `e8dae4b5cbe6c8dc185e4905582aa6c904f817f1` | [X-Pose](https://github.com/IDEA-Research/X-Pose/tree/e8dae4b5cbe6c8dc185e4905582aa6c904f817f1)，[非商业科研许可](https://github.com/IDEA-Research/X-Pose/blob/e8dae4b5cbe6c8dc185e4905582aa6c904f817f1/LICENSE.txt) |
 | `dlc` | DeepLabCut TensorFlow后端，TensorFlow 2.15系列 | [DeepLabCut](https://github.com/DeepLabCut/DeepLabCut)，[LGPL-3.0](https://github.com/DeepLabCut/DeepLabCut/blob/main/LICENSE)；用户提供训练项目和检查点 |
+| `primateface_landmarks`（远程网页） | PrimateFace `184fa8c31f9ed824c3226e46e70b87b3efe97416`；Cascade R-CNN R101-FPN＋HRNetV2-W18 DARK | [PrimateFace](https://github.com/KordingLab/PrimateFace/tree/184fa8c31f9ed824c3226e46e70b87b3efe97416)，MIT；原生68个面部点 |
+| `primateface_expression`（远程网页） | 同一PrimateFace脸检测器＋`monkey-identity-expression` `41be445d425ffe57fbc6714442150aad226c39b3` | [作者表情CNN](https://github.com/monkey-id-exp/monkey-identity-expression/tree/41be445d425ffe57fbc6714442150aad226c39b3)；该固定源码未明确许可，不分发作者代码或权重 |
 
 本仓库提供的是适配层，模型作者代码及权重没有被重新许可。数据集许可、模型权重许可和框架代码许可应分别核对。X-Pose的原许可对用途有明确限制，使用者需遵守原条款。
 
@@ -26,4 +28,16 @@
 路径存在只代表配置准备就绪，不能证明依赖版本、CUDA、检查点结构或解剖点位正确。实际加载时保留模型头结构、原生点名和完整性检查；遇到不兼容应修正环境／配置，不能用随机初始化或伪造坐标替代。
 
 MMPose旧API与新版本不同，应使用适配版本。ViTPose按原作者多数据集检查点选择AP10K分支；X-Pose保留对象分数语义；DLC后端当前使用CPU与手动ROI。更换检查点或点位定义时需要重新验证兼容性。
+
+## 远程面部后端
+
+面部后端放在私有配置的 `face_models`，不改变桌面版五个身体模型的注册表。`config.example.json` 提供两种模式的空路径模板：
+
+- 共用：`python`、`repo`、`detector_config`、`detector_checkpoint`，以及可选的 `detector_checkpoint_sha256`。
+- 面部68点：`landmark_config`、`landmark_checkpoint`、可选的 `landmark_checkpoint_sha256`。
+- 表情分类：`expression_python`、`expression_repo`、`expression_architecture`、`expression_checkpoint`、`class_mapping_audit`，以及可选的 `expression_checkpoint_sha256`。表情CNN在独立TensorFlow CPU进程中运行。
+
+先由PrimateFace在用户指定的单猴ROI内定位脸，再输出68个点或把脸裁剪送入表情CNN。这里的脸检测与身体模式的可选YOLO定位是不同步骤；不能把YOLO的猴子框当作脸框。未检出脸时明确记录 `no_face`；低分关键点保留原始分数，并由显示阈值控制是否绘制。
+
+作者表情类别顺序为 `neutral`、`lipsmack`、`threat`、`fearful`，由原作者元数据审计核对。JSONL中的 `expression` 保存是否可用、原类别名、最高分和四类softmax分数；分数未校准，`internal_affect_validated` 为 `false`。表情模式没有面部关键点输出，不能把分类分数伪装成坐标。分类只描述模型对脸图像的判断，不能代替 expert-rated affective state 或潜在内部情感测量；嘴部运动、遮挡、笼条、小脸及检测误差仍需检查。
 

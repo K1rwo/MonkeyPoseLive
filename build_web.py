@@ -5,12 +5,12 @@ import json
 from pathlib import Path
 import zipfile
 
-VERSION='0.2.0'
+VERSION='0.3.0'
 FILES=['remote_server.py','web_inference.py','tracking.py','worker.py','models.py','runtime_config.py',
        'adaptation_helpers.py','config.example.json','requirements-web.txt','Start-Web.ps1','Stop-Web.ps1',
        'Web-Common.ps1','Install-WebTunnel.ps1','README.md','LICENSE','NOTICE',
        'docs/WEB_DEPLOYMENT.md','docs/BACKENDS.md','docs/WEB_VALIDATION.md',
-       'web/remote.html','web/remote.js','web/remote.css']
+       'web/remote.html','web/remote.js','web/remote.css','face_models.py','face_worker.py']
 
 
 def build(source,output):

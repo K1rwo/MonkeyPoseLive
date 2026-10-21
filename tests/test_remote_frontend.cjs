@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   RemoteAPI,APIError,CameraRunner,uploadVideo,jobPath,containedRect,pointInFrame,
-  validPoint,normalizeSample,segmentsForJoint,jpegBlob,mount
+  validPoint,normalizeSample,segmentsForJoint,jpegBlob,translate,mount
 } = require('../web/remote.js');
 const tests=[];
 const test=(name,run)=>tests.push({name,run});
@@ -109,34 +109,42 @@ test('trajectory gaps are not interpolated and axes use actual frame dimensions'
   assert.equal(normalizeSample({time:0,points:[]}),null);
 });
 
-function fakeDOM({secure=true,initialJobs=[]}={}){
+function fakeDOM({secure=true,initialJobs=[],language='zh',models=null,framePayload=null,resultPayload=null,jobKind='camera',cameraError=null,storageBlocked=false,authenticated=true}={}){
   const html=fs.readFileSync(path.join(__dirname,'../web/remote.html'),'utf8'),ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
   assert.equal(new Set(ids).size,ids.length,'IDs must be unique');
   const element=(id='')=>{
     const classes=new Set(),listeners={};
     return{id,classes,listeners,value:id==='threshold'?'0.2':id==='joint'?'0':'',disabled:false,checked:false,dataset:{},files:[],options:[],width:640,height:480,videoWidth:640,videoHeight:480,readyState:2,
       classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),toggle(name,on){if(on===undefined)on=!classes.has(name);on?classes.add(name):classes.delete(name);},contains:name=>classes.has(name)},
-      setAttribute(name,value){this[name]=value;},removeAttribute(name){delete this[name];},addEventListener(name,fn){listeners[name]=fn;},
+      setAttribute(name,value){this[name]=value;},getAttribute(name){return this[name]??null;},removeAttribute(name){delete this[name];},addEventListener(name,fn){listeners[name]=fn;},
       replaceChildren(){this.options=[];this.value='';},append(node){this.options.push(node);if(this.options.length===1)this.value=node.value;},
       getBoundingClientRect(){return{width:800,height:id==='chartCanvas'?170:450,left:0,top:0};},
       getContext(){return new Proxy({},{get:()=>()=>{}});},toBlob(callback){callback(new Blob(['jpeg'],{type:'image/jpeg'}));},
       play:async()=>{},pause(){},load(){},setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}};
   };
-  const nodes=Object.fromEntries(ids.map(id=>[id,element(id)])),document={getElementById:id=>nodes[id],createElement:tag=>element(tag)};
+  const nodes=Object.fromEntries(ids.map(id=>[id,element(id)])),staticNodes=[];
+  for(const match of html.matchAll(/<\w+\b([^>]*)>/g)){
+    const attributes=Object.fromEntries([...match[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(item=>[item[1],item[2]]));
+    if(!Object.keys(attributes).some(key=>key.startsWith('data-i18n')))continue;
+    const node=attributes.id?nodes[attributes.id]:element();Object.assign(node,attributes);staticNodes.push(node);
+  }
+  const document={documentElement:{lang:'zh-CN'},getElementById:id=>nodes[id],createElement:tag=>element(tag),querySelectorAll:selector=>staticNodes.filter(node=>node.getAttribute(selector.slice(1,-1))!==null)};
   let serverStatus='queued',stopped=0,frameCalls=0;const requests=[],timers=new Map(),gate=defer();let timerID=0;
-  const browser={document,isSecureContext:secure,devicePixelRatio:1,navigator:{mediaDevices:{getUserMedia:async()=>({getTracks:()=>[{stop:()=>stopped++}]})}},URL:{createObjectURL:()=>'/blob/preview',revokeObjectURL:()=>{}},addEventListener(){},clearTimeout:id=>timers.delete(id),setTimeout:fn=>{const id=++timerID;timers.set(id,fn);return id;},
+  const stored=new Map([['monkeypose-language',language]]);
+  const browser={document,localStorage:{getItem:key=>{if(storageBlocked)throw new Error('storage blocked');return stored.get(key);},setItem:(key,value)=>{if(storageBlocked)throw new Error('storage blocked');stored.set(key,value);}},isSecureContext:secure,devicePixelRatio:1,navigator:{mediaDevices:{getUserMedia:async()=>{if(cameraError)throw cameraError;return{getTracks:()=>[{stop:()=>stopped++}]};}}},URL:{createObjectURL:()=>'/blob/preview',revokeObjectURL:()=>{}},addEventListener(){},clearTimeout:id=>timers.delete(id),setTimeout:fn=>{const id=++timerID;timers.set(id,fn);return id;},
     fetch:async(url,options={})=>{
       requests.push({url,options});
-      if(url==='/api/session')return response({authenticated:true,csrf:'csrf-test',models:[{id:'mmpose',label:'Test pose',ready:true,detector_supported:true}],limits:{max_upload_bytes:500,chunk_bytes:4}});
+      if(url==='/api/session')return response({authenticated,csrf:'csrf-test',models:models||[{id:'mmpose',label:'Test pose',ready:true,detector_supported:true}],limits:{max_upload_bytes:500,chunk_bytes:4}});
       if(url==='/api/jobs'&&(!options.method||options.method==='GET'))return response({jobs:initialJobs});
       if(url==='/api/jobs'&&options.method==='POST')return response({id:'job123',kind:JSON.parse(options.body).kind,status:'queued'});
       if(url==='/api/jobs/job123'&&options.method==='DELETE')return response({id:'job123',status:'cancelled',processed:0});
-      if(url==='/api/jobs/job123')return response({id:'job123',kind:'camera',status:serverStatus,processed:0});
-      if(url.includes('/frame?')){frameCalls++;await gate.promise;return response({sequence:1,points:[[10,10,.9]],width:640,height:480,keypoint_names:['nose']});}
+      if(url==='/api/jobs/job123')return response({id:'job123',kind:jobKind,status:serverStatus,processed:0});
+      if(url==='/api/jobs/job123/result')return response(resultPayload||{});
+      if(url.includes('/frame?')){frameCalls++;await gate.promise;return response(framePayload||{sequence:1,points:[[10,10,.9]],width:640,height:480,keypoint_names:['nose']});}
       if(url==='/api/logout')return response({ok:true});
       return response({});
     }};
-  return{nodes,document,browser,requests,timers,gate,setStatus:value=>{serverStatus=value;},stopped:()=>stopped,frameCalls:()=>frameCalls};
+  return{nodes,document,browser,requests,timers,gate,stored,staticNodes,setStatus:value=>{serverStatus=value;},stopped:()=>stopped,frameCalls:()=>frameCalls};
 }
 test('insecure remote HTTP disables browser camera while video stays available',async()=>{
   const fake=fakeDOM({secure:false}),app=mount(fake.document,fake.browser);await settle();
@@ -181,6 +189,101 @@ test('reload cancels old camera job without opening any local camera',async()=>{
   assert.equal(app.state.job.status,'cancelled');assert.equal(app.state.stream,null);assert.equal(fake.frameCalls(),0);
   assert(fake.requests.some(request=>request.url==='/api/jobs/job123'&&request.options.method==='DELETE'));
   assert.match(fake.nodes.message.textContent,/重新预览摄像头/);
+});
+
+test('Japanese preference translates static UI, dynamic states and safe server errors',async()=>{
+  const fake=fakeDOM({language:'ja'}),app=mount(fake.document,fake.browser);await settle();
+  assert.equal(app.state.language,'ja');assert.equal(fake.document.documentElement.lang,'ja');
+  assert.equal(fake.nodes.videoTab.textContent,'動画アップロード');assert.equal(fake.nodes.connectionText.textContent,'ホストに接続済み');
+  assert.equal(fake.nodes.password.placeholder,'管理者から受け取ったパスワード');
+  assert.equal(translate('密码不正确','ja'),'パスワードが正しくありません');
+  assert.equal(translate('服务请求失败（502）','ja'),'サービスへのリクエストが失敗しました（502）');
+  assert.equal(translate('视频超过 512.0 MiB 的上传上限','ja'),'動画がアップロード上限（512.0 MiB）を超えています');
+  assert.equal(translate('<unsafe>','ja'),'<unsafe>','unrecognized text remains literal, never markup');
+  app.setLanguage('zh');assert.equal(fake.nodes.videoTab.textContent,'上传视频');assert.equal(fake.stored.get('monkeypose-language'),'zh');
+});
+test('language switch preserves active camera, pending frame, job, ROI and controls',async()=>{
+  const fake=fakeDOM(),app=mount(fake.document,fake.browser);await settle();
+  await fake.nodes.cameraTab.listeners.click();await fake.nodes.cameraPreviewButton.listeners.click();await app.startJob();await settle();
+  fake.setStatus('running');const timer=[...fake.timers.values()][0];fake.timers.clear();await timer();await settle();
+  const epoch=app.state.epoch,job=app.state.job,stream=app.state.stream,requests=fake.requests.length;
+  app.state.roi=[.1,.2,.7,.8];fake.nodes.language.value='ja';fake.nodes.language.listeners.change();
+  assert.equal(app.state.epoch,epoch);assert.strictEqual(app.state.job,job);assert.strictEqual(app.state.stream,stream);
+  assert.deepEqual(app.state.roi,[.1,.2,.7,.8]);assert.equal(fake.requests.length,requests);assert.equal(fake.stopped(),0);assert.equal(fake.frameCalls(),1);
+  assert.equal(fake.nodes.cameraPreviewButton.textContent,'カメラ準備完了');assert.equal(fake.nodes.jobStatus.textContent,'解析中');assert.equal(fake.nodes.model.disabled,true);
+  await app.stopJob();fake.gate.resolve();await settle();assert.equal(fake.nodes.jobStatus.textContent,'停止済み');
+});
+test('Japanese camera permission errors and insecure-context hint remain useful',async()=>{
+  const denied=new Error('denied');denied.name='NotAllowedError';
+  const fake=fakeDOM({language:'ja',cameraError:denied}),app=mount(fake.document,fake.browser);await settle();
+  await fake.nodes.cameraTab.listeners.click();await fake.nodes.cameraPreviewButton.listeners.click();await settle();
+  assert.match(fake.nodes.message.textContent,/カメラの許可が拒否/);assert.equal(app.state.stream,null);assert.equal(fake.frameCalls(),0);
+  const insecure=fakeDOM({language:'ja',secure:false});mount(insecure.document,insecure.browser);await settle();
+  assert.match(insecure.nodes.cameraWarning.textContent,/HTTPS 接続が必要/);
+});
+test('blocked localStorage leaves language switching functional',async()=>{
+  const fake=fakeDOM({storageBlocked:true}),app=mount(fake.document,fake.browser);await settle();
+  app.setLanguage('ja');assert.equal(fake.nodes.connectionText.textContent,'ホストに接続済み');assert.equal(app.state.language,'ja');
+});
+test('face models use separate task views and render four expression scores without joints',async()=>{
+  const models=[{id:'mmpose',label:'Body',ready:true,task:'body_pose',detector_supported:true},
+    {id:'primateface_landmarks',label_zh:'PrimateFace · 面部关键点',label_ja:'PrimateFace · 顔ランドマーク',ready:true,task:'face_landmarks'},
+    {id:'primateface_expression',label_zh:'猕猴面部表情CNN',label_ja:'マカク顔表情CNN',ready:true,task:'facial_expression'}];
+  const fake=fakeDOM({models,framePayload:{sequence:1,width:640,height:480,task:'facial_expression',points:[],keypoint_names:[],expression:{available:true,label:'threat',probabilities:[{label:'neutral',score:.1},{label:'lipsmack',score:.2},{label:'threat',score:.6},{label:'fearful',score:.1}]}}}),app=mount(fake.document,fake.browser);await settle();
+  assert.equal(fake.nodes.modelCount.textContent,'身体 1 · 面部关键点 1 · 面部表情 1');
+  fake.nodes.model.value='primateface_landmarks';fake.nodes.model.listeners.change();assert.equal(fake.nodes.trajectoryTitle.textContent,'面部关键点轨迹');
+  fake.nodes.model.value='primateface_expression';fake.nodes.model.listeners.change();
+  assert.equal(fake.nodes.trajectoryPanel.classList.contains('hidden'),true);assert.equal(fake.nodes.expressionPanel.classList.contains('hidden'),false);assert.equal(fake.nodes.threshold.disabled,true);
+  await fake.nodes.cameraTab.listeners.click();await fake.nodes.cameraPreviewButton.listeners.click();await app.startJob();await settle();
+  fake.setStatus('running');const timer=[...fake.timers.values()][0];fake.timers.clear();await timer();fake.gate.resolve();await settle();
+  assert.equal(fake.nodes.expressionLabel.textContent,'威胁样面部表现');assert.equal(fake.nodes.expressionScores.options.length,4);assert.equal(app.state.names.length,0);
+  app.setLanguage('ja');assert.equal(fake.nodes.expressionLabel.textContent,'威嚇様表情');assert.equal(fake.nodes.modelCount.textContent,'身体 1 · 顔ランドマーク 1 · 顔表情 1');
+  assert.equal(fake.nodes.expressionScores.options[0].options[0].textContent,'中立');assert.match(fake.nodes.model.options[2].textContent,/マカク顔表情CNN/);
+  await app.stopJob();
+});
+
+test('every marked static text has a Japanese translation',()=>{
+  const fake=fakeDOM();
+  for(const node of fake.staticNodes){const key=node.getAttribute('data-i18n');if(!key || key==='停止')continue;assert.notEqual(translate(key,'ja'),key,`Missing translation: ${key}`);}
+});
+
+test('no-face video result clears previous expression scores across language and task views',async()=>{
+  const models=[{id:'primateface_expression',label:'Expression',ready:true,task:'facial_expression'},
+    {id:'primateface_landmarks',label:'Face landmarks',ready:true,task:'face_landmarks'}];
+  const result={width:640,height:480,points:[],expression:{available:true,label:'neutral',probabilities:[{label:'neutral',score:1}]}};
+  const fake=fakeDOM({models,jobKind:'video',resultPayload:result,initialJobs:[{id:'job123',kind:'video',model:'primateface_expression',status:'running'}]});
+  fake.setStatus('running');const app=mount(fake.document,fake.browser);await settle();
+  assert.equal(fake.nodes.expressionLabel.textContent,'中性');assert.equal(fake.nodes.expressionScores.options.length,1);
+  result.expression={available:false,label:null,probabilities:[]};
+  const timer=[...fake.timers.values()][0];assert(timer);fake.timers.clear();await timer();await settle();
+  assert.equal(fake.nodes.expressionLabel.textContent,'未检测到可用面部');assert.equal(fake.nodes.expressionScores.options.length,0);
+  const epoch=app.state.epoch;app.setLanguage('ja');assert.equal(app.state.epoch,epoch);
+  assert.equal(fake.nodes.expressionLabel.textContent,'利用可能な顔を検出できませんでした');assert.equal(fake.nodes.expressionScores.options.length,0);
+  await app.stopJob();fake.nodes.model.value='primateface_landmarks';fake.nodes.model.listeners.change();
+  assert.equal(fake.nodes.expressionPanel.classList.contains('hidden'),true);assert.equal(fake.nodes.trajectoryPanel.classList.contains('hidden'),false);
+  fake.nodes.model.value='primateface_expression';fake.nodes.model.listeners.change();app.setLanguage('zh');
+  assert.equal(fake.nodes.expressionLabel.textContent,'未检测到可用面部');assert.equal(fake.nodes.expressionScores.options.length,0);
+});
+
+test('language choice works before login and persists without opening a camera',async()=>{
+  const fake=fakeDOM({authenticated:false,language:'ja'}),app=mount(fake.document,fake.browser);await settle();
+  assert.equal(app.state.authenticated,false);assert.equal(fake.nodes.connectionText.textContent,'アクセスパスワードを入力');
+  assert.equal(fake.nodes.loginTitle.textContent,'別のパソコンから、動きを解析');assert.equal(fake.nodes.language.value,'ja');
+  fake.nodes.language.value='zh';fake.nodes.language.listeners.change();
+  assert.equal(fake.nodes.loginTitle.textContent,'让另一台电脑，也能看见运动');assert.equal(fake.stored.get('monkeypose-language'),'zh');assert.equal(fake.frameCalls(),0);assert.equal(fake.stopped(),0);
+});
+
+test('seven-model dropdown and selected video survive a language change',async()=>{
+  const models=['mmpose','macaque3dpose_2d','vitpose_animal','xpose','dlc'].map(id=>({id,label:id,ready:id!=='dlc',task:'body_pose'}));
+  models.push({id:'primateface_landmarks',ready:true,task:'face_landmarks'},{id:'primateface_expression',ready:true,task:'facial_expression'});
+  const fake=fakeDOM({language:'ja',models}),app=mount(fake.document,fake.browser);await settle();
+  assert.equal(fake.nodes.model.options.length,7);assert.equal(fake.nodes.modelCount.textContent,'身体 5 · 顔ランドマーク 1 · 顔表情 1');
+  assert.match(fake.nodes.model.options[6].textContent,/マカク顔表情CNN/);assert.equal(fake.nodes.model.options[4].disabled,true);
+  const file=new Blob(['movie']);file.name='clip.mp4';fake.nodes.videoFile.files=[file];fake.nodes.videoFile.listeners.change();await settle();
+  app.state.roi=[.1,.2,.7,.8];fake.nodes.model.value='primateface_landmarks';fake.nodes.model.listeners.change();
+  const epoch=app.state.epoch,requests=fake.requests.length;app.setLanguage('zh');
+  assert.strictEqual(app.state.file,file);assert.equal(fake.nodes.fileName.textContent,'clip.mp4');assert.equal(fake.nodes.model.value,'primateface_landmarks');
+  assert.deepEqual(app.state.roi,[.1,.2,.7,.8]);assert.equal(app.state.epoch,epoch);assert.equal(fake.requests.length,requests);
 });
 
 (async()=>{

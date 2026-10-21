@@ -11,8 +11,14 @@ import time
 
 MODEL_IDS = ('mmpose', 'macaque3dpose_2d', 'vitpose_animal', 'xpose', 'dlc')
 MODEL_PATH_FIELDS = ('python', 'config', 'checkpoint', 'repo', 'clip_checkpoint', 'pose_config')
+FACE_MODEL_IDS = ('primateface_landmarks', 'primateface_expression')
+FACE_PATH_FIELDS = ('python', 'repo', 'detector_config', 'detector_checkpoint', 'landmark_config',
+                    'landmark_checkpoint', 'expression_python', 'expression_repo',
+                    'expression_architecture', 'expression_checkpoint', 'class_mapping_audit')
+FACE_HASH_FIELDS = ('detector_checkpoint_sha256', 'landmark_checkpoint_sha256', 'expression_checkpoint_sha256')
 DEFAULT_CONFIG = {'schema_version': 1, 'base_python': '', 'output_directory': '',
-                  'detector': {'checkpoint': '', 'device': 'cpu'}, 'models': {k: {} for k in MODEL_IDS}}
+                  'detector': {'checkpoint': '', 'device': 'cpu'}, 'models': {k: {} for k in MODEL_IDS},
+                  'face_models': {k: {} for k in FACE_MODEL_IDS}}
 
 
 def _expanded(value):
@@ -75,6 +81,18 @@ def _validate(value):
         if not isinstance(hashes, dict) or any(not isinstance(k, str) or not k.startswith('.') or '/' in k or '\\' in k or
                                              not isinstance(v, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', v) for k, v in hashes.items()):
             raise ValueError('models.' + model_id + '.checkpoint_files_sha256 must map file suffixes to SHA256 strings')
+    face_values = value.get('face_models', {})
+    if not isinstance(face_values, dict):
+        raise ValueError('face_models must be an object')
+    for model_id, record in face_values.items():
+        if model_id not in FACE_MODEL_IDS or not isinstance(record, dict):
+            raise ValueError('Unknown face model ID or invalid model object: ' + str(model_id))
+        for key in FACE_PATH_FIELDS:
+            if key in record and not isinstance(record[key], str):
+                raise ValueError('face_models.' + model_id + '.' + key + ' must be a string path')
+        for key in FACE_HASH_FIELDS:
+            if key in record and (not isinstance(record[key], str) or record[key] and not re.fullmatch(r'[0-9a-fA-F]{64}', record[key])):
+                raise ValueError('face_models.' + model_id + '.' + key + ' must be empty or contain64 hexadecimal characters')
     try:
         json.dumps(value, allow_nan=False)
     except (TypeError, ValueError) as exc:
@@ -84,10 +102,12 @@ def _validate(value):
 
 def _merged(value):
     result = deepcopy(DEFAULT_CONFIG)
-    result.update({k: deepcopy(v) for k, v in value.items() if not k.startswith('_') and k not in ('detector', 'models')})
+    result.update({k: deepcopy(v) for k, v in value.items() if not k.startswith('_') and k not in ('detector', 'models', 'face_models')})
     result['detector'].update(deepcopy(value.get('detector', {})))
     for key, item in value.get('models', {}).items():
         result['models'][key].update(deepcopy(item))
+    for key, item in value.get('face_models', {}).items():
+        result['face_models'][key].update(deepcopy(item))
     return result
 
 
@@ -118,6 +138,10 @@ def load_config(path=None, resolve_paths=False):
         result['detector']['checkpoint'] = resolve(result['detector']['checkpoint'])
         for model in result['models'].values():
             for key in MODEL_PATH_FIELDS:
+                if key in model:
+                    model[key] = resolve(model[key])
+        for model in result['face_models'].values():
+            for key in FACE_PATH_FIELDS:
                 if key in model:
                     model[key] = resolve(model[key])
     result.update(_config_path=str(target), _config_exists=target.exists(), _errors=errors, config_error='; '.join(errors) or None)

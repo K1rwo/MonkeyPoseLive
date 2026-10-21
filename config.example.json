@@ -47,5 +47,39 @@
       "checkpoint_files_sha256": {},
       "detector_supported": false
     }
+  },
+  "face_models": {
+    "primateface_landmarks": {
+      "python": "",
+      "repo": "",
+      "detector_config": "",
+      "detector_checkpoint": "",
+      "landmark_config": "",
+      "landmark_checkpoint": "",
+      "expression_python": "",
+      "expression_repo": "",
+      "expression_architecture": "",
+      "expression_checkpoint": "",
+      "class_mapping_audit": "",
+      "detector_checkpoint_sha256": "",
+      "landmark_checkpoint_sha256": "",
+      "expression_checkpoint_sha256": ""
+    },
+    "primateface_expression": {
+      "python": "",
+      "repo": "",
+      "detector_config": "",
+      "detector_checkpoint": "",
+      "landmark_config": "",
+      "landmark_checkpoint": "",
+      "expression_python": "",
+      "expression_repo": "",
+      "expression_architecture": "",
+      "expression_checkpoint": "",
+      "class_mapping_audit": "",
+      "detector_checkpoint_sha256": "",
+      "landmark_checkpoint_sha256": "",
+      "expression_checkpoint_sha256": ""
+    }
   }
 }

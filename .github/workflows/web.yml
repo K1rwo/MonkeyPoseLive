@@ -22,6 +22,8 @@ jobs:
         run: python -m unittest test_remote_server -v
       - name: Public package boundaries and integrity
         run: python -m unittest test_web_package -v
+      - name: Facial model contracts and output regressions
+        run: python -m unittest test_face_models test_web_outputs -v
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

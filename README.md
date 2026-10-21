@@ -4,9 +4,13 @@
 
 Local monkey 2D pose and trajectory viewer for USB cameras and video files. The Windows desktop application uses independently configured pose backends; model weights and research media are supplied by the user.
 
-## 远程网页版（0.2）
+## 远程网页版（0.3）
 
 这台电脑运行模型，其他电脑通过带密码的HTTPS网页上传视频，或发送浏览器摄像头画面。客户端无需安装模型。网页可查看骨架、关节轨迹和进度，并下载JSONL、CSV和叠加视频。上传任务逐帧处理；摄像头一次发送一帧，避免积压，实际速度取决于网络和模型。
+
+右上角可选择中文或日本語，浏览器会记住选择。模型列表保留五个身体后端，并新增 PrimateFace 68 点面部定位和四类面部表情分类。表情模式显示 `neutral`、`lipsmack`、`threat`、`fearful` 的原始类别分数；这些分数表示作者模型对面部显示的分类，不是动物内在情感的概率。无脸时保留缺失，不强行给出类别。面部模式使用独立的主机配置，见 [BACKENDS.md](docs/BACKENDS.md)。
+
+视频画面保留当前帧的点位和连接，已去掉蓝色的历史运动拖尾；关节坐标记录和下方 X/Y 曲线继续保留。
 
 使用独立Python环境安装 `requirements-web.txt`，配置好本机模型后，运行 [Start-Web.ps1](Start-Web.ps1)；加 `-QuickTunnel` 创建临时公网HTTPS入口。先用 [Install-WebTunnel.ps1](Install-WebTunnel.ps1) 安装并校验官方隧道工具。停止入口和推理服务使用 [Stop-Web.ps1](Stop-Web.ps1)。完整部署与访问说明见 [WEB_DEPLOYMENT.md](docs/WEB_DEPLOYMENT.md)。
 
@@ -33,6 +37,8 @@ Local monkey 2D pose and trajectory viewer for USB cameras and video files. The 
 | ViTPose++-S AP10K | 保留AP10K动物点位、expert3和associate head2 |
 | X-Pose | macaque文本提示；FP32；对象阈值0.1，没有独立逐关节置信度；遵守作者非商业科研许可 |
 | DeepLabCut ResNet50 | 用户自己的TensorFlow检查点；CPU、手动ROI；不附带猴子专用权重 |
+| PrimateFace 68 点（远程网页） | 在单猴 ROI 内检测面部，输出原生68点；未检出脸时不补点 |
+| 四类面部表情（远程网页） | PrimateFace定位脸，再使用作者CNN；输出四类原始softmax分数 |
 
 YOLO定位为可选项，需要用户自己的检测器权重；没有检测器时可使用手动ROI。模型、数据集及权重具有各自的许可，见 [模型来源与限制](docs/BACKENDS.md)。
 
@@ -51,7 +57,7 @@ flowchart LR
 - 分数不等于准确率。缺失、低分、框外点及超过1秒的输出间隔会断开显示轨迹，不插值补点或平滑原始坐标。
 - 原始坐标保留在处理画面的像素坐标系，保存时附输入尺寸、原始尺寸比例、模型和配置来源。
 - 桌面模式默认关闭坐标保存，不录制原始视频。桌面服务仅监听loopback；远程模式通过单独的HTTPS隧道连接，也不调用云端模型。
-- 这是单猴2D工具。遮挡、笼条、暗部和目标切换仍需人工核验；没有个体身份验证、3D重建或情感分类。
+- 这是单猴2D工具。遮挡、笼条、暗部和目标切换仍需人工核验；没有个体身份验证或3D重建。远程网页的面部表情探针未在本项目专家评定情感状态上校准或验证。
 
 初版已进行模型适配器、文件模拟、ROI切换、轨迹断点和进程生命周期检查。USB硬件兼容性和持续性能需要在目标设备上实测；运行检查不等于专家关键点准确率评估。若检测器或旧检查点曾用目标域数据训练，完整流程不能称为严格zero-shot。
 
