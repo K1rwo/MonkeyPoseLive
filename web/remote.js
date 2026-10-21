@@ -36,6 +36,13 @@
     'X 横向位置':'X 横方向','Y 纵向位置':'Y 縦方向','低分或缺失时断开':'低スコア・欠損時は接続しません','低分、缺失或超过 1 秒时断开':'低スコア・欠損・1 秒超の間隔では接続しません',
     '骨骼与轨迹为自动预测，各模型使用原生关节定义。分数未经校准，不代表解剖准确率；X-Pose 的对象分数不能评价单个关节。表情分类为探索性输出，不代表动物的真实内部情感。':'骨格と軌跡は自動予測で、各モデル固有のキーポイント定義を使用します。スコアは未校正で、解剖学的精度を示しません。X-Pose の物体スコアでは個々の関節を評価できません。表情分類は探索的な出力であり、動物の実際の内的感情を表しません。',
     '面部表情分析':'顔表情の解析','模型输出 · 探索性使用':'モデル出力 · 探索的な利用','等待面部画面':'顔画像を待機中',
+    '切换到表情分类':'表情分類に切り替える','查看表情结果面板':'表情結果パネルを表示',
+    'PrimateFace 只定位 68 个面部关键点，不包含表情分类。位置与轨迹是自动预测，分数未经校准。':'PrimateFace は顔の 68 ランドマークのみを検出し、表情分類は行いません。位置と軌跡は自動予測で、スコアは未校正です。',
+    '当前模式只定位 68 个面部关键点，不进行表情分类。要查看中性、咂嘴、威胁样、恐惧样四类分数，请切换到“面部表情”模型。':'現在のモードは顔の 68 ランドマークのみを検出し、表情分類は行いません。中立・リップスマック・威嚇様・恐怖様の 4 クラスのスコアを見るには「顔表情」モデルに切り替えてください。',
+    '当前模式只定位 68 个面部关键点，不进行表情分类。请先停止当前任务，再切换到“面部表情”模型查看中性、咂嘴、威胁样、恐惧样四类分类。':'現在のモードは顔の 68 ランドマークのみを検出し、表情分類は行いません。まず現在のタスクを停止し、「顔表情」モデルに切り替えて中立・リップスマック・威嚇様・恐怖様の 4 クラス分類を使用してください。',
+    '当前模式只定位 68 个面部关键点，不进行表情分类。表情分类模型尚未就绪，请联系管理员。':'現在のモードは顔の 68 ランドマークのみを検出し、表情分類は行いません。表情分類モデルは未準備です。管理者に連絡してください。',
+    '点击“开始分析”运行中性、咂嘴、威胁样、恐惧样四类表情分类；结果显示在画面下方的“面部表情分析”面板。':'「解析開始」を押すと中立・リップスマック・威嚇様・恐怖様の 4 クラスを分類します。結果は映像の下の「顔表情の解析」パネルに表示されます。',
+    '中性、咂嘴、威胁样、恐惧样四类表情分数显示在画面下方的“面部表情分析”面板。':'中立・リップスマック・威嚇様・恐怖様の 4 クラスのスコアは映像の下の「顔表情の解析」パネルに表示されます。',
     '表情类别是模型的视觉分类，不代表动物的真实内部情感。遮挡、姿态和画质可能影响结果。':'表情カテゴリはモデルによる画像分類であり、動物の実際の内的感情を表しません。遮蔽、顔の向き、画質の影響を受けます。',
     '模型分数（未经校准）':'モデルスコア（未校正）','未检测到可用面部':'利用可能な顔を検出できませんでした','表情分类不输出关节轨迹。':'表情分類は関節軌跡を出力しません。',
     '分析设置':'解析設定','输入方式':'入力方法','上传视频':'動画アップロード','浏览器摄像头':'ブラウザーカメラ','选择视频文件':'動画ファイルを選択',
@@ -254,7 +261,7 @@
 
   function mount(document, window) {
     const byId = id => document.getElementById(id);
-    const elements = Object.fromEntries(['loginPanel','loginForm','password','loginButton','loginMessage','application','logoutButton','connection','connectionText','model','modelNote','detector','detectorNote','videoTab','cameraTab','videoFields','cameraFields','videoFile','fileName','fileLimit','cameraPreviewButton','cameraHint','cameraWarning','threshold','thresholdValue','resetRoi','roiLabel','startButton','stopButton','progressPanel','progressLabel','progressValue','progress','message','downloads','downloadJson','downloadCsv','downloadVideo','media','preview','previewCanvas','placeholder','previewTitle','previewHint','frameSize','liveDot','jobStatus','jobDetail','processed','frameDetail','inferenceFps','latencyDetail','chartCanvas','chartEmpty','joint','jointReadout','language','modelCount','trajectoryPanel','trajectoryTitle','expressionPanel','expressionLabel','expressionScores','expressionHint'].map(id => [id, byId(id)]));
+    const elements = Object.fromEntries(['loginPanel','loginForm','password','loginButton','loginMessage','application','logoutButton','connection','connectionText','model','modelNote','detector','detectorNote','videoTab','cameraTab','videoFields','cameraFields','videoFile','fileName','fileLimit','cameraPreviewButton','cameraHint','cameraWarning','threshold','thresholdValue','resetRoi','roiLabel','startButton','stopButton','progressPanel','progressLabel','progressValue','progress','message','downloads','downloadJson','downloadCsv','downloadVideo','media','preview','previewCanvas','placeholder','previewTitle','previewHint','frameSize','liveDot','jobStatus','jobDetail','processed','frameDetail','inferenceFps','latencyDetail','chartCanvas','chartEmpty','joint','jointReadout','language','modelCount','trajectoryPanel','trajectoryTitle','expressionPanel','expressionLabel','expressionScores','expressionHint','modelTaskHelp','modelTaskHint','switchExpressionButton','viewExpressionButton'].map(id => [id, byId(id)]));
     const renderedText = new Map();
     let language = 'zh';
     try { language = window.localStorage?.getItem('monkeypose-language') === 'ja' ? 'ja' : 'zh'; } catch (_) { /* Storage can be disabled by the browser. */ }
@@ -290,6 +297,15 @@
       for(const [node,text] of renderedText)node.textContent=t(text);
       renderModelLabels();modelChanged();roiLabel();renderExpression();drawChart();
     }
+    function updateTaskHelp() {
+      const task=currentTask(),active=isActive(),expressionModel=state.models.find(model=>model.task==='facial_expression' && model.ready);
+      elements.modelTaskHelp.classList.toggle('hidden',!['face_landmarks','facial_expression'].includes(task));
+      elements.switchExpressionButton.classList.toggle('hidden',task!=='face_landmarks');
+      elements.switchExpressionButton.disabled=active || !expressionModel;
+      elements.viewExpressionButton.classList.toggle('hidden',task!=='facial_expression');
+      if(task==='face_landmarks')setText(elements.modelTaskHint,active ? '当前模式只定位 68 个面部关键点，不进行表情分类。请先停止当前任务，再切换到“面部表情”模型查看中性、咂嘴、威胁样、恐惧样四类分类。' : expressionModel ? '当前模式只定位 68 个面部关键点，不进行表情分类。要查看中性、咂嘴、威胁样、恐惧样四类分数，请切换到“面部表情”模型。' : '当前模式只定位 68 个面部关键点，不进行表情分类。表情分类模型尚未就绪，请联系管理员。');
+      else if(task==='facial_expression')setText(elements.modelTaskHint,active ? '中性、咂嘴、威胁样、恐惧样四类表情分数显示在画面下方的“面部表情分析”面板。' : '点击“开始分析”运行中性、咂嘴、威胁样、恐惧样四类表情分类；结果显示在画面下方的“面部表情分析”面板。');
+    }
     function updateControls() {
       const active = isActive(), model = currentModel();
       for (const element of [elements.model,elements.threshold,elements.videoTab,elements.cameraTab,elements.videoFile,elements.resetRoi]) element.disabled = active;
@@ -305,10 +321,12 @@
       elements.preview.dataset.selectable = String(!active && Boolean(state.frame));
       setText(elements.previewHint,active ? (state.kind === 'camera' ? '显示与预测匹配的画面；停止后释放摄像头' : '逐帧分析 · 画面为最近完成的预测') : '开始前可在画面上拖动，限定单猴区域');
       elements.liveDot.dataset.live = String(active && state.kind === 'camera');
+      updateTaskHelp();
     }
     function modelChanged() {
       const model = currentModel();
       setText(elements.modelNote,model ? (model.ready ? (modelField(model,'caveat') || '模型已在工作站就绪；结果保留原生关节定义。') : '此模型暂未在工作站就绪，请联系管理员。') : '工作站上尚无可用模型。');
+      if(model?.ready && currentTask()==='face_landmarks')setText(elements.modelNote,'PrimateFace 只定位 68 个面部关键点，不包含表情分类。位置与轨迹是自动预测，分数未经校准。');
       const face=currentTask()!=='body_pose';
       setText(byId('detectorLabel'),face?'自动定位面部':'自动定位猴子');
       setText(elements.detectorNote,face ? '面部模型自行定位面部，建议将 ROI 限定到单猴头部。' : (model && model.detector_supported ? (model.detector_ready === false ? '工作站检测器尚未就绪，请使用手动 ROI。' : '在所选 ROI 内自动定位单猴；使用工作站配置的权重。') : '此模型使用手动 ROI，自动检测不可用。'));
@@ -713,6 +731,17 @@
     elements.videoTab.addEventListener('click',()=>changeKind('video'));
     elements.cameraTab.addEventListener('click',()=>changeKind('camera'));
     elements.model.addEventListener('change',modelChanged);
+    elements.switchExpressionButton.addEventListener('click',()=>{
+      if(isActive())return;
+      const model=state.models.find(item=>item.task==='facial_expression' && item.ready);
+      if(!model)return;
+      elements.model.value=model.id;modelChanged();
+    });
+    elements.viewExpressionButton.addEventListener('click',()=>{
+      if(currentTask()!=='facial_expression')return;
+      elements.expressionPanel.scrollIntoView?.({behavior:'smooth',block:'start'});
+      elements.expressionPanel.focus?.({preventScroll:true});
+    });
     elements.threshold.addEventListener('input',()=>{setText(elements.thresholdValue,Number(elements.threshold.value).toFixed(2));drawChart();drawPreview();});
     elements.videoFile.addEventListener('change',()=>{
       if(isActive())return;

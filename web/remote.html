@@ -49,7 +49,7 @@
           <div class="chart"><canvas id="chartCanvas" aria-label="所选关节横向和纵向位置随时间变化" data-i18n-aria-label="所选关节横向和纵向位置随时间变化"></canvas><span id="chartEmpty" data-i18n="分析开始后显示关节位置变化">分析开始后显示关节位置变化</span></div>
           <div class="chart-footer"><span><i></i><span data-i18n="X 横向位置">X 横向位置</span> <i class="y"></i><span data-i18n="Y 纵向位置">Y 纵向位置</span></span><span id="jointReadout" data-i18n="低分或缺失时断开">低分或缺失时断开</span></div>
         </section>
-        <section class="expression-card card hidden" id="expressionPanel" aria-label="面部表情分析" data-i18n-aria-label="面部表情分析">
+        <section class="expression-card card hidden" id="expressionPanel" tabindex="-1" aria-label="面部表情分析" data-i18n-aria-label="面部表情分析">
           <div class="section-top"><div><h2 data-i18n="面部表情分析">面部表情分析</h2><p data-i18n="模型输出 · 探索性使用">模型输出 · 探索性使用</p></div><strong id="expressionLabel" data-i18n="等待面部画面">等待面部画面</strong></div>
           <p class="subtle" data-i18n="模型分数（未经校准）">模型分数（未经校准）</p><div id="expressionScores" class="expression-scores"></div>
           <p class="subtle" id="expressionHint" data-i18n="表情类别是模型的视觉分类，不代表动物的真实内部情感。遮挡、姿态和画质可能影响结果。">表情类别是模型的视觉分类，不代表动物的真实内部情感。遮挡、姿态和画质可能影响结果。</p>
@@ -70,7 +70,7 @@
           <div class="camera-warning hidden" id="cameraWarning" data-i18n="浏览器摄像头需要 HTTPS 安全连接。请使用管理员提供的 HTTPS 地址；本机 localhost 也可用于测试。">浏览器摄像头需要 HTTPS 安全连接。请使用管理员提供的 HTTPS 地址；本机 localhost 也可用于测试。</div>
         </div>
         <div class="divider"></div>
-        <div class="field"><label for="model" data-i18n="分析模型">分析模型</label><select id="model"></select><p class="model-count subtle" id="modelCount"></p><p class="subtle" id="modelNote" data-i18n="正在读取工作站模型状态…">正在读取工作站模型状态…</p></div>
+        <div class="field"><label for="model" data-i18n="分析模型">分析模型</label><select id="model"></select><p class="model-count subtle" id="modelCount"></p><p class="subtle" id="modelNote" data-i18n="正在读取工作站模型状态…">正在读取工作站模型状态…</p><div class="model-task-help hidden" id="modelTaskHelp"><p id="modelTaskHint"></p><button class="secondary hidden" id="switchExpressionButton" type="button" data-i18n="切换到表情分类">切换到表情分类</button><button class="quiet hidden" id="viewExpressionButton" type="button" data-i18n="查看表情结果面板">查看表情结果面板</button></div></div>
         <label class="check-row"><input type="checkbox" id="detector"><span><span id="detectorLabel" data-i18n="自动定位猴子">自动定位猴子</span><small id="detectorNote" data-i18n="使用工作站配置的检测器；关闭时使用所选 ROI。">使用工作站配置的检测器；关闭时使用所选 ROI。</small></span></label>
         <div class="field threshold"><div class="range-top"><label for="threshold" data-i18n="显示分数阈值">显示分数阈值</label><output id="thresholdValue" for="threshold">0.20</output></div><input type="range" id="threshold" min="0" max="1" step="0.01" value="0.2"><p class="subtle" data-i18n="低于阈值的关节不连接轨迹。">低于阈值的关节不连接轨迹。</p></div>
         <div class="roi-row"><span data-i18n="目标区域 ROI">目标区域 ROI</span><button class="quiet" id="resetRoi" type="button" data-i18n="重置">重置</button></div><p class="subtle" data-i18n="开始前拖动画面选择目标区域。任务中设置保持固定。">开始前拖动画面选择目标区域。任务中设置保持固定。</p>

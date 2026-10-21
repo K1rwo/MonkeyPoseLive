@@ -120,7 +120,7 @@ function fakeDOM({secure=true,initialJobs=[],language='zh',models=null,framePayl
       replaceChildren(){this.options=[];this.value='';},append(node){this.options.push(node);if(this.options.length===1)this.value=node.value;},
       getBoundingClientRect(){return{width:800,height:id==='chartCanvas'?170:450,left:0,top:0};},
       getContext(){return new Proxy({},{get:()=>()=>{}});},toBlob(callback){callback(new Blob(['jpeg'],{type:'image/jpeg'}));},
-      play:async()=>{},pause(){},load(){},setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}};
+      play:async()=>{},pause(){},load(){},scrollIntoView(options){this.scrolled=options;},focus(options){this.focused=options;},setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}};
   };
   const nodes=Object.fromEntries(ids.map(id=>[id,element(id)])),staticNodes=[];
   for(const match of html.matchAll(/<\w+\b([^>]*)>/g)){
@@ -284,6 +284,40 @@ test('seven-model dropdown and selected video survive a language change',async()
   const epoch=app.state.epoch,requests=fake.requests.length;app.setLanguage('zh');
   assert.strictEqual(app.state.file,file);assert.equal(fake.nodes.fileName.textContent,'clip.mp4');assert.equal(fake.nodes.model.value,'primateface_landmarks');
   assert.deepEqual(app.state.roi,[.1,.2,.7,.8]);assert.equal(app.state.epoch,epoch);assert.equal(fake.requests.length,requests);
+});
+
+test('landmark shortcut explains classification and preserves video, ROI and idle task state',async()=>{
+  const models=[{id:'primateface_landmarks',ready:true,task:'face_landmarks'},{id:'primateface_expression',ready:true,task:'facial_expression'}];
+  const fake=fakeDOM({models}),app=mount(fake.document,fake.browser);await settle();
+  assert.match(fake.nodes.modelNote.textContent,/68.*不包含表情分类/);assert.match(fake.nodes.modelTaskHint.textContent,/不进行表情分类/);
+  for(const label of ['中性','咂嘴','威胁样','恐惧样'])assert(fake.nodes.modelTaskHint.textContent.includes(label));
+  assert.equal(fake.nodes.switchExpressionButton.classList.contains('hidden'),false);assert.equal(fake.nodes.switchExpressionButton.disabled,false);
+  const file=new Blob(['movie']);file.name='clip.mp4';fake.nodes.videoFile.files=[file];fake.nodes.videoFile.listeners.change();await settle();app.state.roi=[.1,.2,.7,.8];
+  const epoch=app.state.epoch,requests=fake.requests.length;fake.nodes.switchExpressionButton.listeners.click();
+  assert.equal(fake.nodes.model.value,'primateface_expression');assert.strictEqual(app.state.file,file);assert.deepEqual(app.state.roi,[.1,.2,.7,.8]);assert.equal(app.state.epoch,epoch);assert.equal(app.state.job,null);assert.equal(fake.requests.length,requests);
+  assert.match(fake.nodes.modelTaskHint.textContent,/开始分析.*中性、咂嘴、威胁样、恐惧样.*画面下方/);
+  assert.equal(fake.nodes.expressionPanel.classList.contains('hidden'),false);fake.nodes.viewExpressionButton.listeners.click();
+  assert.deepEqual(fake.nodes.expressionPanel.scrolled,{behavior:'smooth',block:'start'});assert.equal(fake.requests.length,requests);
+  app.setLanguage('ja');assert.match(fake.nodes.modelTaskHint.textContent,/中立・リップスマック・威嚇様・恐怖様.*映像の下/);assert.equal(fake.nodes.switchExpressionButton.textContent,'表情分類に切り替える');
+});
+
+test('active landmark task prevents shortcut switching and explains stop-first in both languages',async()=>{
+  const models=[{id:'primateface_landmarks',ready:true,task:'face_landmarks'},{id:'primateface_expression',ready:true,task:'facial_expression'}];
+  const fake=fakeDOM({models}),app=mount(fake.document,fake.browser);await settle();
+  await fake.nodes.cameraTab.listeners.click();await fake.nodes.cameraPreviewButton.listeners.click();await app.startJob();await settle();
+  assert.equal(fake.nodes.switchExpressionButton.disabled,true);assert.match(fake.nodes.modelTaskHint.textContent,/先停止当前任务/);
+  const job=app.state.job,epoch=app.state.epoch,requests=fake.requests.length,stream=app.state.stream;fake.nodes.switchExpressionButton.listeners.click();
+  assert.equal(fake.nodes.model.value,'primateface_landmarks');assert.strictEqual(app.state.job,job);assert.strictEqual(app.state.stream,stream);assert.equal(app.state.epoch,epoch);assert.equal(fake.requests.length,requests);
+  app.setLanguage('ja');assert.equal(fake.nodes.switchExpressionButton.disabled,true);assert.match(fake.nodes.modelTaskHint.textContent,/現在のタスクを停止/);
+  await app.stopJob();assert.equal(fake.nodes.switchExpressionButton.disabled,false);fake.nodes.switchExpressionButton.listeners.click();assert.equal(fake.nodes.model.value,'primateface_expression');
+  assert.equal(fake.requests.filter(request=>request.url==='/api/jobs'&&request.options.method==='POST').length,1,'shortcut cannot create an inference task');
+});
+
+test('unready expression classifier leaves landmark shortcut disabled with a useful explanation',async()=>{
+  const models=[{id:'primateface_landmarks',ready:true,task:'face_landmarks'},{id:'primateface_expression',ready:false,task:'facial_expression'}];
+  const fake=fakeDOM({models}),app=mount(fake.document,fake.browser);await settle();
+  assert.equal(fake.nodes.switchExpressionButton.disabled,true);assert.match(fake.nodes.modelTaskHint.textContent,/分类模型尚未就绪/);
+  const requests=fake.requests.length;fake.nodes.switchExpressionButton.listeners.click();assert.equal(fake.nodes.model.value,'primateface_landmarks');assert.equal(fake.requests.length,requests);
 });
 
 (async()=>{
